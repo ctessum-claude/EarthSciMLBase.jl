@@ -4,6 +4,7 @@ using DomainSets
 using Test
 using SymbolicIndexingInterface
 using OrdinaryDiffEqTsit5
+import Reactant
 t = ModelingToolkit.t_nounits
 D = ModelingToolkit.D_nounits
 
@@ -106,4 +107,18 @@ if Sys.isapple()
         prob.f.jac(Jo, prob.u0, prob.p, prob.tspan[1])
         @test Array(EarthSciMLBase.block(Jo, 1)) ≈ Jop
     end
+end
+
+@testset "Reactant simple" begin
+    f, _, _ = EarthSciMLBase.mtk_grid_func(sys, domain, u0, MapReactant())
+    du = similar(u0)[:]
+    f(du, u0[:], p, 0.0)
+    @test du[1:2] ≈ [-11.413716694115397, -11.141592653589793]
+
+    uor = Reactant.to_rarray(u0[:])
+    dur = similar(uor)
+    tr = Reactant.to_rarray(0.0)
+
+    Reactant.@jit f(dur, uor, p, 0.0f0)
+    @test dur[1:2] ≈ [-11.413716694115397, -11.141592653589793]
 end

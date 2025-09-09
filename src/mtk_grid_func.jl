@@ -15,20 +15,43 @@ function rewrite_coord_func(x, coord_args, idv::Symbol)
     return x
 end
 
-function _add_coord_args(ex, coord_args, idv::Symbol)
+function rewrite_broadcast(x)
+    if @capture(x, (a_)[b_] = (c_))
+        if a == :ˍ₋out # Copying data to output array
+            return :(@view($a[$b, :]) .= $c)
+        end
+    elseif @capture(x, (a_)[b_])
+        if a == :__mtk_arg_1 # Accessing u array
+            return :(@view($a[$b, :]))
+        end
+    elseif @capture(x, (f_)(args__)) # Function call
+        return :($f.($(args...)))
+    elseif @capture(x, if a_ b_ else c_ end) # if expression
+        return :(ifelse.($a, $b, $c))
+    end
+    return x
+end
+
+function _add_coord_args(ex, coord_args, idv::Symbol, ::MapAlgorithm)
     ex = MacroTools.postwalk(x -> rewrite_coord_func(x, coord_args, idv), ex)
 end
 
-function gen_coord_func(
-        sys, expr, coord_args; eval_expression = false, eval_module = @__MODULE__)
+function _add_coord_args(ex, coord_args, idv::Symbol, ::MapReactant)
+    ex = MacroTools.postwalk(x -> rewrite_coord_func(x, coord_args, idv), ex)
+    ex = MacroTools.postwalk(x -> rewrite_broadcast(x), ex)
+end
+
+
+function gen_coord_func(sys, expr, coord_args, alg::MapAlgorithm=MapBroadcast();
+        eval_expression = false, eval_module = @__MODULE__)
     idv = var2symbol(ModelingToolkit.get_iv(sys))
     fexpr = ModelingToolkit.generate_custom_function(sys, expr, expression = Val{true})
     if fexpr isa Tuple
-        fexpr = EarthSciMLBase._add_coord_args.(fexpr, (coord_args,), (idv,))
+        fexpr = _add_coord_args.(fexpr, (coord_args,), (idv,), (alg,))
         f = ModelingToolkit.eval_or_rgf.(fexpr; eval_expression, eval_module)
         f = ModelingToolkit.GeneratedFunctionWrapper{(2, 6, true)}(f[1], f[2])
     else
-        fexpr = EarthSciMLBase._add_coord_args(fexpr, coord_args, idv)
+        fexpr = _add_coord_args(fexpr, coord_args, idv, alg)
         f = ModelingToolkit.eval_or_rgf(fexpr; eval_expression, eval_module)
     end
     return f
@@ -71,19 +94,22 @@ end
 
 RuntimeGeneratedFunctions.init(@__MODULE__)
 
-function build_coord_ode_function(sys_coord, coord_args; kwargs...)
+function build_coord_ode_function(sys_coord, coord_args, MA::MapAlgorithm=MapBroadcast();
+        kwargs...)
     exprs = [eq.rhs for eq in equations(sys_coord)]
-    gen_coord_func(sys_coord, exprs, coord_args; kwargs...)
+    gen_coord_func(sys_coord, exprs, coord_args, MA; kwargs...)
 end
 
-function build_coord_jac_function(sys_coord, coord_args; sparse = false, kwargs...)
+function build_coord_jac_function(sys_coord, coord_args, MA::MapAlgorithm=MapBroadcast();
+        sparse = false, kwargs...)
     jac_expr = ModelingToolkit.calculate_jacobian(sys_coord, sparse = sparse; kwargs...)
-    gen_coord_func(sys_coord, jac_expr, coord_args; kwargs...)
+    gen_coord_func(sys_coord, jac_expr, coord_args, MA; kwargs...)
 end
 
-function build_coord_tgrad_function(sys_coord, coord_args; kwargs...)
+function build_coord_tgrad_function(sys_coord, coord_args, MA::MapAlgorithm=MapBroadcast();
+        kwargs...)
     tgrad_expr = ModelingToolkit.calculate_tgrad(sys_coord; kwargs...)
-    gen_coord_func(sys_coord, tgrad_expr, coord_args; kwargs...)
+    gen_coord_func(sys_coord, tgrad_expr, coord_args, MA; kwargs...)
 end
 
 """
@@ -120,6 +146,26 @@ function _mtk_grid_func(sys_mtk, mtkf, domain::DomainInfo{ET, AT},
     return f
 end
 
+# Broadcast-based ODE function for use with Reactant.jl.
+function _mtk_grid_func(sys_mtk, mtkf, domain::DomainInfo{ET, AT},
+        ::MapReactant) where {ET, AT}
+    nrows = length(unknowns(sys_mtk))
+    c1, c2, c3 = concrete_grid(domain)
+    function f(du::AbstractVector, u::AbstractVector, p, t) # In-place
+        u = reshape(u, nrows, :)
+        du = reshape(du, nrows, :)
+        mtkf(du, u, p, t, c1, c2, c3)
+    end
+    function f(u, p, t) # Out-of-place
+        u = reshape(u, nrows, :)
+        @info u, p, t, c1, c2, c3
+        @info mtkf
+        du =  mtkf(u, p, t, c1, c2, c3)
+        reshape(hcat(du...), :)
+    end
+    return f
+end
+
 # Return a function to apply the MTK system to each column of u after reshaping to a matrix.
 function mtk_grid_func(
         sys_mtk::System, domain::DomainInfo{T, AT}, u0,
@@ -129,8 +175,8 @@ function mtk_grid_func(
         T, AT, MA <: MapAlgorithm, JT <: JacobianType}
     sys_mtk, coord_args = _prepare_coord_sys(sys_mtk, domain)
 
-    mtkf_coord = build_coord_ode_function(sys_mtk, coord_args)
-    jac_coord = build_coord_jac_function(sys_mtk, coord_args; sparse = sparse)
+    mtkf_coord = build_coord_ode_function(sys_mtk, coord_args, alg)
+    jac_coord = build_coord_jac_function(sys_mtk, coord_args, alg; sparse = sparse)
 
     f = _mtk_grid_func(sys_mtk, mtkf_coord, domain, alg)
 
@@ -141,7 +187,38 @@ function mtk_grid_func(
 
     kwargs = []
     if tgrad
-        tgf = build_coord_tgrad_function(sys_mtk, coord_args)
+        tgf = build_coord_tgrad_function(sys_mtk, coord_args, alg)
+        tg = mtk_tgrad_grid_func(sys_mtk, tgf, domain, alg)
+        push!(kwargs, :tgrad => tg)
+    end
+    if vjp
+        vj = mtk_vjp_grid_func(sys_mtk, jac_coord, domain, alg)
+        push!(kwargs, :vjp => vj)
+    end
+    ODEFunction(f; jac_prototype = jac_prototype, jac = jf, kwargs...), sys_mtk, coord_args
+end
+
+function mtk_grid_func(
+        sys_mtk::System, domain::DomainInfo{T, AT}, u0,
+        alg::MapReactant,
+        jac_type::JT = BlockDiagonalJacobian();
+        sparse = false, tgrad = false, vjp = true) where {
+        T, AT, JT <: JacobianType}
+    sys_mtk, coord_args = _prepare_coord_sys(sys_mtk, domain)
+
+    mtkf_coord = build_coord_ode_function(sys_mtk, coord_args, alg)
+    jac_coord = build_coord_jac_function(sys_mtk, coord_args, alg; sparse = sparse)
+
+    f = _mtk_grid_func(sys_mtk, mtkf_coord, domain, alg)
+
+    nvars = length(unknowns(sys_mtk))
+
+    jac_prototype = build_jacobian(jac_type, nvars, domain, alg, sparse)
+    jf = mtk_jac_grid_func(sys_mtk, jac_coord, domain, jac_type, alg)
+
+    kwargs = []
+    if tgrad
+        tgf = build_coord_tgrad_function(sys_mtk, coord_args, alg)
         tg = mtk_tgrad_grid_func(sys_mtk, tgf, domain, alg)
         push!(kwargs, :tgrad => tg)
     end
