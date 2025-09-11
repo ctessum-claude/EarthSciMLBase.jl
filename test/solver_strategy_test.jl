@@ -46,7 +46,8 @@ function EarthSciMLBase.get_odefunction(
             t1, t2, t3, fv = obs_f(view(u, :, II[j]), p, t, c1[j], c2[j], c3[j])
             [(t1 + t2 + t3) * fv for _ in 1:size(u, 1)]
         end
-        du = map_closure_to_range(f, 1:((*)(sz...)), alg, u, p, t, c1, c2, c3)
+        du = EarthSciMLBase.map_closure_to_range(f, 1:((*)(sz...)),
+            alg, u, p, t, c1, c2, c3)
         reshape(hcat(du...), :)
     end
     return run
@@ -63,7 +64,7 @@ t_max = 11.5
 
 @parameters y lon=0.0 lat=0.0 lev=1.0 α=10.0
 @constants p = 1.0
-@variables(u(t)=1.0, v(t)=1.0, x(t), [unit=u"1/m"], y(t), [unit=u"1/m"], z(t),
+@variables(u(t)=1.0, v(t)=1.0, x(t), [unit = u"1/m"], y(t), [unit = u"1/m"], z(t),
     windspeed(t))
 
 indepdomain = t ∈ Interval(t_min, t_max)
@@ -184,8 +185,8 @@ end
         f.jac(du, ucopy[:], p, 0.0)
         @test sum(du.data) ≈ 12617.772209024473
 
-            du2 = f.jac(reshape(ucopy, :), p, 0.0)
-            @test all(du.data .≈ du2.data)
+        du2 = f.jac(reshape(ucopy, :), p, 0.0)
+        @test all(du.data .≈ du2.data)
     end
 
     @testset "jac MapThreads" begin
@@ -193,8 +194,8 @@ end
         fthreads.jac(du, ucopy[:], p, 0.0)
         @test sum(du.data) ≈ 12617.772209024473
 
-            du2 = fthreads.jac(reshape(ucopy, :), p, 0.0)
-            @test all(du.data .≈ du2.data)
+        du2 = fthreads.jac(reshape(ucopy, :), p, 0.0)
+        @test all(du.data .≈ du2.data)
     end
 
     @testset "tgrad" begin

@@ -1,4 +1,4 @@
-export MapAlgorithm, MapBroadcast, MapThreads, MapKernel, MapReactant, map_closure_to_range
+export MapAlgorithm, MapBroadcast, MapThreads, MapKernel, MapReactant
 
 """
 A type to specify the algorithm used for performing a computation
@@ -50,5 +50,33 @@ function map_closure_to_range(f, range, mk::MapKernel, args...; kwargs...)
     end
 end
 function map_closure_to_range(f, range, ::MapReactant, args...)
-    Reactant.@jit map(f, range, args...)
+    function _map(f, range, args...)
+        f2(i) = f(i, args...; kwargs...)
+        map(f2, range)
+    end
+    Reactant.@jit _map(f, range, args...)
+end
+
+function mapreduce_range(f, op, range, ::MapBroadcast, args...)
+    mapreduce(f, op, range, args...; init = 0)
+end
+function mapreduce_range(f, op, range, ::MapThreads, args...)
+    ThreadsX.mapreduce(f, op, range, args...; init = 0)
+end
+function mapreduce_range(f, op, range, ::MapKernel, args...)
+    bknd = if (length(args) > 0) && (args[1] isa AbstractArray)
+        AK.get_backend(args[1])
+    else
+        error("No backend specified for MapKernel. Please provide an array as the first argument.")
+    end
+    f2(i) = f(i, args...)
+    AK.mapreduce(f2, op, range, bknd; init = 0, neutral = 0)
+end
+function mapreduce_range(f, op, range, ::MapReactant, args...)
+    function _mapreduce(range, args...)
+        f2(i) = f(i, args...)
+        out = map(f2, range)
+        reduce(op, out, init = 0)
+    end
+    Reactant.@jit _mapreduce(range, args...)
 end

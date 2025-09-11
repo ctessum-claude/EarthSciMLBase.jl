@@ -321,9 +321,10 @@ function init_u(mtk_sys::System, d::DomainInfo{ET}) where {ET}
     dflts = ModelingToolkit.get_defaults(mtk_sys)
     u0_single = [dflts[u] for u in vars]
 
-    u0 = init_array(d, length(u0_single), size(d)...)
+    u0 = init_array(d, length(u0_single)*prod(size(d)))
+    u0_tmp = reshape(u0, length(u0_single), :)
     for (i, u) in enumerate(u0_single)
-        @view(u0[i, :, :, :]) .= ET(u)
+        @view(u0_tmp[i, :, :, :]) .= ET(u)
     end
     return u0
 end

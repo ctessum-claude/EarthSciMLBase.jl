@@ -168,7 +168,7 @@ function LS.generic_lufact!(
         A::BlockDiagonal, pivot::Union{NoPivot, RowMaximum, RowNonZero},
         ipiv; check = false)
     data = A.data
-    function lufunc!(b)
+    function lufunc!(b, data, ipiv)
         ll = LS.generic_lufact!(
             @view(data[:, :, b]), pivot, @view(ipiv[:, b]); check = check)
         return ll.info
@@ -176,21 +176,20 @@ function LS.generic_lufact!(
     # Check for nonzero return codes
     reduce_info(info1, info2) = abs(info1) > abs(info2) ? info1 : info2
 
-    info = AK.mapreduce(lufunc!, reduce_info, 1:nblocks(A), AK.get_backend(data);
-        init = 0, neutral = 0)
+    info = mapreduce_range(lufunc!, reduce_info, 1:nblocks(A), A.alg, data, ipiv)
 
     return BlockDiagonalLU(A.data, ipiv, info)
 end
 function LinearAlgebra.generic_lufact!(
         A::BlockDiagonal, pivot::Union{NoPivot, RowMaximum, RowNonZero}; check = false)
     ipiv = similar(A.data, Int64, size(A.data, 1), size(A.data, 3))
-    return LS.generic_lufact!(copy(A), pivot, ipiv; check = check)
+    return LS.generic_lufact!(A, pivot, ipiv; check = check)
 end
 
 function LinearAlgebra.ldiv!(x::AbstractVector, A::BlockDiagonalLU, b::AbstractVector)
     @assert size(x)==size(b) "dimensions of x and b must match"
     @assert size(A, 1)==size(b, 1) "number of rows must match"
-    function fldiv!(i, factors, ipiv, info, x, b)
+    function fldiv!(i, factors, ipiv, x, b)
         n = size(factors, 1)
         _factors = @view(factors[:, :, i])
         _ipiv = @view(ipiv[:, i])
@@ -200,7 +199,7 @@ function LinearAlgebra.ldiv!(x::AbstractVector, A::BlockDiagonalLU, b::AbstractV
         ldiv_factors!(_x, _factors, _ipiv, _b)
     end
     map_closure_to_range(
-        fldiv!, 1:nblocks(A), MapKernel(), A.factors, A.ipiv, A.info, x, b)
+        fldiv!, 1:nblocks(A), MapKernel(), A.factors, A.ipiv, x, b)
     x
 end
 

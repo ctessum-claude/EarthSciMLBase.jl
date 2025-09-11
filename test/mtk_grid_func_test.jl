@@ -75,13 +75,13 @@ u0 = EarthSciMLBase.init_u(sys_coord, domain)
     f, _, _ = EarthSciMLBase.mtk_grid_func(sys, domain, u0)
 
     @testset "in place" begin
-        prob = ODEProblem(f, reshape(u0, :), (0.0, 1.0), p)
+        prob = ODEProblem(f, u0, (0.0, 1.0), p)
         sol1 = solve(prob, Tsit5())
         @test sum(sol1.u[end]) ≈ -3029.442918648946
     end
 
     @testset "out of place" begin
-        prob = ODEProblem{false}(f, reshape(u0, :), (0.0, 1.0), p)
+        prob = ODEProblem{false}(f, u0, (0.0, 1.0), p)
         sol2 = solve(prob, Tsit5())
         @test sum(sol2.u[end]) ≈ -3029.442918648946
     end
@@ -90,7 +90,7 @@ end
 @testset "observed" begin
     obs_f = EarthSciMLBase.build_coord_observed_function(
         sys_coord, coord_args, [sys_coord.windspeed])
-    @test [14] ≈ obs_f(reshape(u0, :), p, 0.0, 1, 2, 3)
+    @test [14] ≈ obs_f(u0, p, 0.0, 1, 2, 3)
 end
 
 if Sys.isapple()
@@ -110,15 +110,15 @@ if Sys.isapple()
 end
 
 @testset "Reactant simple" begin
+    domain = DomainInfo(
+        partialderivatives_δxyδlonlat,
+        constIC(16.0, indepdomain), constBC(16.0, partialdomains...);
+        grid_spacing = [1.0, 1.0, 1.0],
+        uproto = Reactant.to_rarray(zeros(Float32, 0)))
+    u0 = EarthSciMLBase.init_u(sys_coord, domain)
+
     f, _, _ = EarthSciMLBase.mtk_grid_func(sys, domain, u0, MapReactant())
-    du = similar(u0)[:]
-    f(du, u0[:], p, 0.0)
+    du = similar(u0)
+    f(du, u0, p, 0.0f0)
     @test du[1:2] ≈ [-11.413716694115397, -11.141592653589793]
-
-    uor = Reactant.to_rarray(u0[:])
-    dur = similar(uor)
-    tr = Reactant.to_rarray(0.0)
-
-    Reactant.@jit f(dur, uor, p, 0.0f0)
-    @test dur[1:2] ≈ [-11.413716694115397, -11.141592653589793]
 end

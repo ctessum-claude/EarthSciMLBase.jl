@@ -151,7 +151,7 @@ function _mtk_grid_func(sys_mtk, mtkf, domain::DomainInfo{ET, AT},
         ::MapReactant) where {ET, AT}
     nrows = length(unknowns(sys_mtk))
     c1, c2, c3 = concrete_grid(domain)
-    function f(du::AbstractVector, u::AbstractVector, p, t) # In-place
+    function f(du, u, p, t) # In-place
         u = reshape(u, nrows, :)
         du = reshape(du, nrows, :)
         mtkf(du, u, p, t, c1, c2, c3)
@@ -209,12 +209,19 @@ function mtk_grid_func(
     mtkf_coord = build_coord_ode_function(sys_mtk, coord_args, alg)
     jac_coord = build_coord_jac_function(sys_mtk, coord_args, alg; sparse = sparse)
 
-    f = _mtk_grid_func(sys_mtk, mtkf_coord, domain, alg)
-
     nvars = length(unknowns(sys_mtk))
-
     jac_prototype = build_jacobian(jac_type, nvars, domain, alg, sparse)
-    jf = mtk_jac_grid_func(sys_mtk, jac_coord, domain, jac_type, alg)
+
+    f, jf = let
+        f = _mtk_grid_func(sys_mtk, mtkf_coord, domain, alg)
+        jf = mtk_jac_grid_func(sys_mtk, jac_coord, domain, jac_type, alg)
+        p = MTKParameters(sys_mtk, defaults(sys_mtk))
+        t = zero(eltype(domain))
+        du = similar(u0) # TODO(CT): Is this allocation avoidable?
+        f_compiled = Reactant.@compile f(du, u0, p, t)
+        #jf_compiled = Reactant.@compile jf(jac_prototype, u0, p, t)
+        f_compiled, jf #jf_compiled
+    end
 
     kwargs = []
     if tgrad
