@@ -37,7 +37,7 @@ function EarthSciMLBase.get_odefunction(
             view(du, :, II[j]) .= (t1 + t2 + t3) * fv
             return nothing
         end
-        map_closure_to_range(f, 1:((*)(sz...)), alg, du, u, p, t, c1, c2, c3)
+        EarthSciMLBase.map_closure_to_range(f, 1:((*)(sz...)), alg, du, u, p, t, c1, c2, c3)
         return reshape(du, :)
     end
     function run(u, p, t) # Out-of-place
@@ -113,7 +113,7 @@ obs_vals = obs_f([0.0, 0], p, 0.0, 0.0, 0.0, 1.0)
 obs_vals = obs_f([0.0, 0], p, 0.0, 1.0, 3.0, 2.0)
 @test obs_vals[1] == 6.0
 
-u = EarthSciMLBase.init_u(sys_coords, domain)
+u = reshape(EarthSciMLBase.init_u(sys_coords, domain), :, size(domain)...)
 scimlop = EarthSciMLBase.nonstiff_ops(csys, sys_coords, coord_args, domain, reshape(u, :),
     p, MapBroadcast())
 du = similar(u)
@@ -164,7 +164,7 @@ end
         MapThreads(); sparse = false, tgrad = false)
     p = EarthSciMLBase.default_params(sys_coords)
     uu = EarthSciMLBase.init_u(sys_coords, domain)
-    prob = ODEProblem(f, uu[:], (0.0, 1.0), p)
+    prob = ODEProblem(f, uu, (0.0, 1.0), p)
     sol = solve(prob, Tsit5())
     varsyms = [Symbol("sys₊", v) for v in EarthSciMLBase.var2symbol.(unknowns(sys1))]
     u_perm = [findfirst(isequal(u), varsyms)

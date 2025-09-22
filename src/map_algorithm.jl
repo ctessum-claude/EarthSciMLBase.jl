@@ -57,13 +57,7 @@ function map_closure_to_range(f, range, ::MapReactant, args...)
     Reactant.@jit _map(f, range, args...)
 end
 
-function mapreduce_range(f, op, range, ::MapBroadcast, args...)
-    mapreduce(f, op, range, args...; init = 0)
-end
-function mapreduce_range(f, op, range, ::MapThreads, args...)
-    ThreadsX.mapreduce(f, op, range, args...; init = 0)
-end
-function mapreduce_range(f, op, range, ::MapKernel, args...)
+function mapreduce_range(f, op, range, ::MapAlgorithm, args...)
     bknd = if (length(args) > 0) && (args[1] isa AbstractArray)
         AK.get_backend(args[1])
     else
