@@ -5,6 +5,7 @@ using Test
 using SymbolicIndexingInterface
 using OrdinaryDiffEqTsit5
 using JLArrays
+using Symbolics: value as sym_value
 t = ModelingToolkit.t_nounits
 D = ModelingToolkit.D_nounits
 
@@ -42,7 +43,7 @@ sys_coord, coord_args = EarthSciMLBase._prepare_coord_sys(sys_simplified, domain
 @test occursin("EarthSciMLBase._CoordTmpF(lon, 1)(t)", string(ModelingToolkit.observed(sys_coord)))
 f = EarthSciMLBase.build_coord_ode_function(
     sys_coord, coord_args; eval_module = ModelingToolkit)
-p = MTKParameters(sys_coord, defaults(sys_coord))
+p = MTKParameters(sys_coord, ModelingToolkit.initial_conditions(sys_coord))
 duop = f(prob.u0, p, 0.0, 2.0, 1.0, 1e13)
 u_perm = [findfirst(isequal(u), unknowns(sys_simplified)) for u in unknowns(sys_coord)]
 new_p = remake_buffer(sys_simplified, prob.p, Dict(lon => 2.0, lat => 1.0, lev => 1e13))
@@ -66,7 +67,9 @@ jac(Jip, prob.u0, p, 0.0, 0.0, 0.0, 0.0)
 @test Jip ≈ Jop
 
 tgrad = EarthSciMLBase.build_coord_tgrad_function(sys_coord, coord_args)
-@test tgrad(prob.u0, p, 0.0, 0.0, 0.0, 0.0) ≈ prob.f.tgrad(prob.u0, prob.p, 0.0)
+# Convert symbolic Num values to concrete numbers for comparison (MTK v11 tgrad may return Num types)
+@test isapprox(Float64.(sym_value.(tgrad(prob.u0, p, 0.0, 0.0, 0.0, 0.0))),
+    Float64.(sym_value.(prob.f.tgrad(prob.u0, prob.p, 0.0))); atol=1e-10)
 
 u0 = EarthSciMLBase.init_u(sys_coord, domain)
 

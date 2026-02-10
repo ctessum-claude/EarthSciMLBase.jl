@@ -31,10 +31,24 @@ function add_dims(exp, vars::AbstractVector, dims::AbstractVector)
         # Replace variable with temporary variable, then replace temporary
         # variable with new variable.
         # TODO(CT): Should be able to directly substitute all variables at once but doesn't work.
-        exp = substitute(exp, Dict(var => 🦖🌋temp))
-        exp = substitute(exp, Dict(🦖🌋temp => newvar))
+        exp = _substitute_through_differential(exp, var, 🦖🌋temp)
+        exp = _substitute_through_differential(exp, 🦖🌋temp, newvar)
     end
     exp
+end
+
+# In Symbolics v7, `substitute` does not penetrate into Differential arguments.
+# This helper unwraps Differentials, performs the substitution on the inner
+# expression, and reconstructs the Differential.
+function _substitute_through_differential(exp, old, new)
+    val = Symbolics.unwrap(exp)
+    if Symbolics.iscall(val) && Symbolics.operation(val) isa Symbolics.Differential
+        inner = Symbolics.wrap(Symbolics.arguments(val)[1])
+        new_inner = substitute(inner, Dict(old => new))
+        op = Symbolics.operation(val)
+        return op(new_inner)
+    end
+    substitute(exp, Dict(old => new))
 end
 
 function add_dims(vars::AbstractVector, dims::AbstractVector)
