@@ -41,7 +41,7 @@ However, the systems for $x$ and $y$ could be used in different ways, so we don'
 To handle this type of situation, `EarthSciML` includes the idea of "system events" which are associated with individual system components, but are configured after the fully coupled system is created.
 
 To create a system event, we need to create a function that takes a ModelingToolkit system as the argument and returns a ModelingToolkit event,
-and then associate that function with the `:sys_discrete_event` key in the metadata dictionary of the system component in question.
+and then associate that function with the `SysDiscreteEvent` key in the metadata dictionary of the system component in question.
 
 The code below does several things. First, it creates a function to determine whether a given variable is needed to solve the system or not.
 Then, it creates "system event functions" for our two component systems, directing each system to increment its parameter value during the simulation, but only if the corresponding variable is needed for the simulation.
@@ -90,9 +90,9 @@ Then, we can run the simulation:
 
 ```@example system_events
 sys1 = System([D(x) ~ a], t_nounits, [x], [a]; name = :sys1,
-    metadata = Dict(:sys_discrete_event => sysevent1))
+    metadata = Dict(SysDiscreteEvent => sysevent1))
 sys2 = System([y ~ b], t_nounits, [y], [b]; name = :sys2,
-    metadata = Dict(:sys_discrete_event => sysevent2))
+    metadata = Dict(SysDiscreteEvent => sysevent2))
 
 model1 = couple(sys1, sys2)
 sys = convert(System, model1)
