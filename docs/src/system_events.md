@@ -63,25 +63,25 @@ end
 
 runcount1 = 0
 function sysevent1(sys)
-    function f1!(integ, u, p, ctx)
+    function f1!(mod, obs, ctx, integ)
         if is_var_needed(sys.sys1₊x, sys) # Only run if x is needed in the system.
             global runcount1 += 1
-            #runcount1 += 1
-            integ.ps[p.sys1₊a] = 1
+            return (sys1₊a = 1,)
         end
+        return (sys1₊a = mod.sys1₊a,)
     end
-    return [3.0] => (f1!, [], [sys.sys1₊a], [], nothing)
+    return [3.0] => (f = f1!, modified = (sys1₊a = sys.sys1₊a,))
 end
 runcount2 = 0
 function sysevent2(sys)
-    function f2!(integ, u, p, ctx)
+    function f2!(mod, obs, ctx, integ)
         if is_var_needed(sys.sys2₊y, sys) # Only run if y is needed in the system.
             global runcount2 += 1
-            #runcount2 += 1
-            integ.ps[p.sys2₊b] = 1
+            return (sys2₊b = 1,)
         end
+        return (sys2₊b = mod.sys2₊b,)
     end
-    return [5.0] => (f2!, [], [sys.sys2₊b], [], nothing)
+    return [5.0] => (f = f2!, modified = (sys2₊b = sys.sys2₊b,))
 end
 ```
 
