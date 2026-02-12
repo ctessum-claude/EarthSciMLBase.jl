@@ -22,8 +22,8 @@ using Plots
     y(t_nounits)
 end
 
-@named sys1 = System([D(x) ~ a], t_nounits, [x, a])
-@named sys2 = System([y ~ b], t_nounits, [y, b])
+@named sys1 = System([D(x) ~ a], t_nounits, [x], [a])
+@named sys2 = System([y ~ b], t_nounits, [y], [b])
 
 model1 = couple(sys1, sys2)
 sys = convert(System, model1)
