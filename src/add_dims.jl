@@ -31,11 +31,12 @@ function add_dims(exp, vars::AbstractVector, dims::AbstractVector)
         # Replace variable with temporary variable, then replace temporary
         # variable with new variable.
         # TODO(CT): Should be able to directly substitute all variables at once but doesn't work.
-        exp = substitute(exp, Dict(var => 🦖🌋temp))
-        exp = substitute(exp, Dict(🦖🌋temp => newvar))
+        exp = substitute_in_deriv(exp, Dict(var => 🦖🌋temp))
+        exp = substitute_in_deriv(exp, Dict(🦖🌋temp => newvar))
     end
     exp
 end
+
 
 function add_dims(vars::AbstractVector, dims::AbstractVector)
     syms = [Symbolics.tosymbol(x, escape = false) for x in vars]
