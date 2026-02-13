@@ -109,6 +109,23 @@ end
 function build_coord_tgrad_function(sys_coord, coord_args, MA::MapAlgorithm=MapBroadcast();
         kwargs...)
     tgrad_expr = ModelingToolkit.calculate_tgrad(sys_coord; kwargs...)
+    # Substitute time derivatives of _CoordTmpF terms with 0.0.
+    # _CoordTmpF represents coordinate parameters that are constant in time,
+    # but expand_derivatives doesn't resolve their derivatives in Symbolics v7.
+    subs = Dict()
+    for e in tgrad_expr
+        for v in Symbolics.get_variables(e)
+            if Symbolics.iscall(v) && Symbolics.operation(v) isa Symbolics.Differential
+                inner = Symbolics.arguments(v)[1]
+                if Symbolics.iscall(inner) && Symbolics.operation(inner) isa _CoordTmpF
+                    subs[Symbolics.wrap(v)] = 0.0
+                end
+            end
+        end
+    end
+    if !isempty(subs)
+        tgrad_expr = Symbolics.substitute.(tgrad_expr, (subs,))
+    end
     gen_coord_func(sys_coord, tgrad_expr, coord_args, MA; kwargs...)
 end
 

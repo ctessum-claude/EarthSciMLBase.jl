@@ -46,7 +46,7 @@ function ODEProblem{iip}(sys::CoupledSystem, st::SolverIMEX; u0 = nothing,
         tgrad = st.stiff_tgrad)
 
     type_convert_params(sys_mtk, u0)
-    p = MTKParameters(sys_mtk, defaults(sys_mtk))
+    p = MTKParameters(sys_mtk, ModelingToolkit.initial_conditions(sys_mtk))
 
     if st.alg isa MapKernel
         p = bitsify_params(p)
@@ -81,10 +81,10 @@ is resolved.
 """
 function type_convert_params(sys::System, u::AbstractArray)
     T = eltype(u)
-    dflt = defaults(sys)
-    for p in keys(dflt)
-        if dflt[p] isa AbstractFloat
-            dflt[p] = T(dflt[p])
+    ics = ModelingToolkit.initial_conditions(sys)
+    for p in keys(ics)
+        if ics[p] isa AbstractFloat
+            ics[p] = T(ics[p])
         end
     end
 end
