@@ -96,7 +96,7 @@ nthreads(st::SolverStrangSerial) = 1
 function _strang_ode_func(sys_mtk, coord_args, tspan, grd; sparse = false)
     mtkf_coord = build_coord_ode_function(sys_mtk, coord_args)
     jac_coord = build_coord_jac_function(sys_mtk, coord_args, sparse = sparse)
-    _prob = ODEProblem(sys_mtk, [], tspan; sparse = sparse)
+    _prob = ODEProblem(sys_mtk, [], tspan; sparse = sparse, build_initializeprob = false)
 
     function f_stiff(du, u, p, t)
         coords = (g[p.ii[j]] for (j, g) in enumerate(grd))
@@ -158,7 +158,10 @@ function ODEProblem(s::CoupledSystem, st::SolverStrang; u0 = nothing, tspan = no
         kwargs = filter((p -> p.first ≠ :callback), kwargs)
     end
 
-    ODEProblem(nonstiff_op, view(u0, :), (start, finish), p; callback = CallbackSet(cb...),
+    # Attach sys_mtk so that users can query unknowns(prob.f.sys) to get the
+    # variable ordering that matches prob.u0 (same ordering as init_u uses).
+    nonstiff_fn = ODEFunction(nonstiff_op; sys = sys_mtk)
+    ODEProblem(nonstiff_fn, view(u0, :), (start, finish), p; callback = CallbackSet(cb...),
         dt = st.timestep, kwargs...)
 end
 
