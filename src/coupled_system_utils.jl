@@ -30,7 +30,6 @@ function observed_expression(eqs, x)
     if isnothing(expr)
         return nothing
     end
-    expr = expr # subs_constants removed in MTK v11
     for v in Symbolics.get_variables(expr)
         v_expr = observed_expression(eqs, v)
         if !isnothing(v_expr)
@@ -335,7 +334,7 @@ end
 
 Initialize an arrays with the given dimensions
 """
-init_array(d::DomainInfo, sizes...) = similar(d.uproto, sizes...)
+init_array(d::DomainInfo, sizes...) = similar(d.u_proto, sizes...)
 
 function default_params(mtk_sys::AbstractSystem)
     ics = ModelingToolkit.initial_conditions(mtk_sys)

@@ -71,7 +71,7 @@ jac(Jip, prob.u0, p, 0.0, 0.0, 0.0, 0.0)
 tgrad = EarthSciMLBase.build_coord_tgrad_function(sys_coord, coord_args)
 # Convert symbolic Num values to concrete numbers for comparison (MTK v11 tgrad may return Num types)
 @test isapprox(Float64.(sym_value.(tgrad(prob.u0, p, 0.0, 0.0, 0.0, 0.0))),
-    Float64.(sym_value.(prob.f.tgrad(prob.u0, prob.p, 0.0))); atol=1e-10)
+    Float64.(sym_value.(prob.f.tgrad(prob.u0, prob.p, 0.0))); atol = 1e-10)
 
 u0 = EarthSciMLBase.init_u(sys_coord, domain)
 
@@ -103,7 +103,7 @@ if Sys.isapple()
         domain = DomainInfo(
             constIC(16.0, indepdomain), constBC(16.0, partialdomains...); grid_spacing = [
                 1.0, 1.0, 1.0],
-            uproto = MtlArray(zeros(Float32, 1, 1, 1, 1)))
+            u_proto = MtlArray(zeros(Float32, 1, 1, 1, 1)))
         csys = couple(sys, domain)
         prob = ODEProblem(csys, SolverIMEX(MapKernel(), stiff_sparse = false))
 
@@ -118,7 +118,7 @@ end
         partialderivatives_δxyδlonlat,
         constIC(16.0, indepdomain), constBC(16.0, partialdomains...);
         grid_spacing = [1.0, 1.0, 1.0],
-        uproto = Reactant.to_rarray(zeros(Float32, 0)))
+        u_proto = Reactant.to_rarray(zeros(Float32, 0)))
     u0 = EarthSciMLBase.init_u(sys_coord, domain)
 
     f, _, _ = EarthSciMLBase.mtk_grid_func(sys, domain, u0, MapReactant())

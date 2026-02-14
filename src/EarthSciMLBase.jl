@@ -18,7 +18,6 @@ using MacroTools, RuntimeGeneratedFunctions
 import SciMLOperators as SMO
 import ThreadsX
 import AcceleratedKernels as AK
-import Reactant
 
 include("add_dims.jl")
 include("domaininfo.jl")

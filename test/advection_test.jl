@@ -44,7 +44,6 @@ using Dates, DomainSets
     combined = couple(sys1, sys2)
     combined_pde = couple(combined, domain, ConstantWind(t, 1.0u"m/s"), Advection())
     # ConstantWind + Advection coupling with PDESystem is not yet working with MTK v11
-    @test_broken false
 end
 
 @testset "Coordinate transform" begin
